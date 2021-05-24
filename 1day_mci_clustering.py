@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # read in dataset and initializing
-user_df = pd.read_csv("user_1day_mci.csv")
+user_df = pd.read_csv("user_day_night_mci.csv")
 user_df = user_df.set_index('dataid')
 row_dim = len(user_df)  # amount of users
 
@@ -23,13 +23,14 @@ User_List = user_df.index  # List of User ID
 User_Pos = dict(zip(range(row_dim), User_List))  # Key: 0...row_dim, Value: User ID
 
 # Criteria of Must-Links:
-MCI_Bound = 0.05  # if difference of MCI is less than 0.05
-Consumption_Bound = 150  # if difference of total daily consumption is less than 150
+MCI_Bound = 0.035  # if difference of MCI is less than
+Consumption_Bound = 0.035  # if difference of total daily consumption is less than
+N_min = 4
 
-Link_Bound = 0.7  # after low-rank completion, only links stronger than this value
+Link_Bound = 0.85  # after low-rank completion, only links stronger than this value
 # is counted as a link
 
-Valid_Sigular_Values = 100  # the desirable rank of similarity matrix
+Valid_Sigular_Values = 150  # the desirable rank of similarity matrix
 
 # compute Must-Links
 must_pair = 0
@@ -38,11 +39,16 @@ for i in range(row_dim):
 
     ith_user_id = User_Pos[i]
     ith_user_consumption = User_Data[ith_user_id][0]
+    # print("consumption: ")
+    # print(ith_user_consumption)
     ith_user_mci = User_Data[ith_user_id][1]
+    # print("mci: ")
+    # print(ith_user_mci)
 
     for j in range(row_dim):
 
         if j == i:
+            M[i, j] = 1
             continue
 
         jth_user_id = User_Pos[j]
@@ -56,26 +62,32 @@ for i in range(row_dim):
                 user_df.loc[ith_user_id, 'link'] += 1
                 user_df.loc[jth_user_id, 'link'] += 1
 
+
+print("Info about M:")
 print(M)
-print(np.linalg.matrix_rank(M))  # 240
-print(row_dim)  # 337
-print(must_pair)  # 1158
-print(sum(user_df['link']))  # 2376
+print(np.linalg.matrix_rank(M))  # 337
+print(row_dim)  # 346
+print(must_pair)  # 24
+print(sum(user_df['link']))  # 48
 
 # Show the must-links of each user
-'''
 
-x = user_df['mci']
-y = user_df['total_consumption']
+
+'''
+x = user_df['mci_night']
+y = user_df['mci_day']
 color = user_df['link']
 
 # cmap = plasma, yellow to orange; Oranges: orange to transparent;
 plt.scatter(x, y, alpha=0.6, c=color, cmap='plasma')
-plt.xlim(23.4, 24.4)
-plt.ylim(0, 5000)
+plt.ylim(23.2, 23.7)
+plt.xlim(23, 24)
+plt.xlabel('mci in night')
+plt.ylabel('mci in day')
 plt.grid(c='grey', linestyle='--')
 plt.show()
 '''
+
 
 # np.savetxt("similarity_matrix.txt", M)
 
@@ -83,12 +95,24 @@ plt.show()
 # Trim sigular values
 U, Sigma, V = np.linalg.svd(M)
 out = np.trunc(Sigma)
+print("Singular Values:")
+print(len(out))
+print(out)
+print(sum(out == 0))
+print(sum(out == 1))
+print(sum(out == 2))
+print(sum(out == 3))
+print(sum(out == 4))
+print(sum(out == 5))
+print(sum(out == 6))
+print(sum(out == 7))
 out = out.astype(int)
 out[Valid_Sigular_Values:] = 0
 
 Sigma = np.diag(out)
 M_hat = (U.dot(Sigma)).dot(V)
 
+print("Info about M_hat:")
 print(M_hat.shape)
 print(M_hat)
 print(np.linalg.matrix_rank(M_hat))
@@ -121,9 +145,9 @@ cluster_df['sizerank'] = range(len(cluster_df))
 
 print(cluster_df)
 
-color_list = ["red", "salmon", "chocolate", "orange",
+color_list = ["red", "deepskyblue", "blueviolet", "orange",
               "yellow", "yellowgreen", "lawngreen", "cyan",
-              "deepskyblue", "dodgerblue", "blue", "blueviolet",
+              "salmon", "dodgerblue", "blue", "chocolate",
               "purple", "fuchsia", "grey"]
 
 for user_id in User_List:
@@ -131,19 +155,24 @@ for user_id in User_List:
     cluster_size = cluster_counts[cluster_id]
     cluster_rank = cluster_df.loc[cluster_id, 'sizerank']
 
-    if cluster_size > 3:
+    if cluster_size > N_min:
         user_df.loc[user_id, 'cluster'] = color_list[min(cluster_rank, len(color_list) - 1)]
     else:
         user_df.loc[user_id, 'cluster'] = 'grey'
 
 # plot the cluster result
-x = user_df['mci']
-y = user_df['total_consumption']
+x = user_df['mci_night']
+y = user_df['mci_day']
 color = user_df['cluster']
 
 # cmap = plasma, yellow to orange; Oranges: orange to transparent;
 plt.scatter(x, y, alpha=0.6, c=color, cmap='Paired')
-plt.xlim(23.4, 24.4)
-plt.ylim(0, 5000)
+plt.ylim(23, 24)
+plt.xlim(23, 24)
 plt.grid(c='grey', linestyle='--')
+plt.xlabel('Nocturnal MCI')
+plt.ylabel('Diurnal MCI')
+plt.title("Eps = 0.03; N_min = 3")
+# plt.title("Eps = " + str(MCI_Bound) + "; N_min = " + str(N_min))
+
 plt.show()
